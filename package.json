@@ -1,0 +1,34 @@
+{
+  "name": "delegated-management-console",
+  "version": "2.1.0",
+  "description": "Role delegation and access control management service for enterprise environments",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "list": "node src/index.js --list",
+    "lint": "eslint src/",
+    "audit": "npm audit --audit-level=moderate",
+    "scan": "bash security/scan.sh",
+    "test": "echo \"No tests configured\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/org/delegated-management-console.git"
+  },
+  "keywords": [
+    "delegation",
+    "access-control",
+    "rbac",
+    "management",
+    "enterprise",
+    "permissions"
+  ],
+  "author": "Platform Engineering Team",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  },
+  "dependencies": {
+    "semver": "^7.6.0"
+  }
+}

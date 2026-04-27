@@ -1,0 +1,65 @@
+name: "D.M.C. Access Checker"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  access-check:
+    name: "Delegation Access Check"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Process request
+        id: capture
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentBody = context.payload.comment.body;
+            core.setOutput('comment_body', commentBody);
+
+            await github.rest.issues.deleteComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id
+            })
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check delegation access
+        run: |
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          RESOURCE=$(echo "$COMMENT_BODY" | grep -oP '(?<=/check-access\s)\S+' || echo "")
+          if [ -z "$RESOURCE" ]; then
+            echo "No resource specified. Usage: /check-access <resource>"
+            exit 0
+          fi
+          echo "Checking delegations for resource: $RESOURCE"
+          node src/index.js --check "$RESOURCE" 2>/dev/null || echo "No delegations found for that resource"
+          echo "Delegation check complete."
+
+      - name: Post results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Delegation access check finished.'
+            })

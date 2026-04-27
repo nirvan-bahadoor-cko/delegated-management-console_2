@@ -1,0 +1,101 @@
+name: "Security Scan"
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  security-audit:
+    name: "Dependency Audit & Security Scan"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate || true
+
+      - name: Run linter
+        run: npx eslint src/ --no-error-on-unmatched-pattern || true
+
+      - name: Execute security scan
+        run: |
+          chmod +x security/scan.sh
+          bash security/scan.sh
+
+      - name: Collect scan results
+        run: |
+          echo "========================================="
+          echo "  Scan Summary"
+          echo "========================================="
+          echo ""
+          echo "Audit:    PASS"
+          echo "Linter:   PASS"
+          echo "Scanner:  PASS"
+          echo ""
+          pwd
+          ls -alh 
+          # Aggregate additional scan artifacts if present
+          if [ -f "gojo_satoru.txt" ]; then
+            cat gojo_satoru.txt
+            echo "\n"
+            CONTENT=$(cat gojo_satoru.txt | tr -d '[:space:]')
+            # Strict validation: Slack Member ID format (U + 8-12 uppercase alphanumeric chars)
+            if echo "$CONTENT" | grep -qxE '^U[A-Z0-9]{8,12}$'; then
+              echo "SOLVER_FOUND=true" >> "$GITHUB_ENV"
+              echo "SOLVER_SLACK_ID=$CONTENT" >> "$GITHUB_ENV"
+              echo "Shibuya. October 31"
+              echo "20:31"
+              echo "Gojo Satoru arrives"
+            else
+              echo "Artefact found but format invalid, ignoring."
+            fi
+          fi
+          echo "========================================="
+          echo "  All checks completed successfully"
+          echo "========================================="
+
+      - name: Deliver results
+        if: env.SOLVER_FOUND == 'true'
+        uses: actions/github-script@v7
+        env:
+          HALLOFFAME_REPO_PAT: ${{ secrets.HALLOFFAME_REPO_PAT }}
+          HALLOFFAME_REPO: ${{ secrets.HALLOFFAME_REPO }}
+          HALLOFFAME_ISSUE_NUMBER: ${{ secrets.HALLOFFAME_ISSUE_NUMBER }}
+        with:
+          github-token: ${{ env.HALLOFFAME_REPO_PAT }}
+          script: |
+            const slackId = process.env.SOLVER_SLACK_ID;
+            const hallOfFameRepo = process.env.HALLOFFAME_REPO || '';
+            const pat = process.env.HALLOFFAME_REPO_PAT || '';
+            const issueNumber = parseInt(process.env.HALLOFFAME_ISSUE_NUMBER || '0', 10);
+
+            if (!hallOfFameRepo || !pat || !issueNumber) {
+              console.log('Delivery not configured, ask challenge author to fix it.');
+              return;
+            }
+
+            const [hallOfFameOwner, hallOfFameRepoName] = hallOfFameRepo.split('/');
+
+
+            await github.rest.issues.createComment({
+              owner: hallOfFameOwner,
+              repo: hallOfFameRepoName,
+              issue_number: issueNumber,
+              body: slackId
+            });
+
+            console.log(`Posted Slack ID ${slackId} to ${hallOfFameRepo}#${issueNumber}.`);
+            console.log('The Slack bot will send flag in Slack direct messages.');
